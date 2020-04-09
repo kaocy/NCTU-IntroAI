@@ -3,14 +3,15 @@ using namespace std;
 
 struct Node {
     int x, y, layer;
-    Node() : x(-1), y(-1), layer(-1) {}
-    Node(int x, int y, int layer = -1) : x(x), y(y), layer(layer) {}
+    Node() : x(-1), y(-1) {}
+    Node(int x, int y) : x(x), y(y) {}
 };
 
 const int BOARD_SIZE = 8;
 const int MAX_LAYER = BOARD_SIZE * BOARD_SIZE;
 bool explored[BOARD_SIZE][BOARD_SIZE];
 Node parent[BOARD_SIZE][BOARD_SIZE];
+int layer[BOARD_SIZE][BOARD_SIZE];
 
 const int dx[8] = {-2, -1, 1, 2, -2, -1, 1, 2};
 const int dy[8] = {1, 2, 2, 1, -1, -2, -2, -1};
@@ -62,7 +63,7 @@ int BFS(const Node& start, const Node& goal) {
             int y = node.y + dy[i];
             if (is_outside(x, y))   continue;
             if (explored[x][y])     continue;
-            frontier.push(Node{x, y, node.layer + 1});
+            frontier.push(Node{x, y});
             parent[x][y] = node;
         }
     }
@@ -93,7 +94,7 @@ int DFS(const Node& start, const Node& goal) {
             int y = node.y + dy[i];
             if (is_outside(x, y))   continue;
             if (explored[x][y])     continue;
-            frontier.push(Node{x, y, node.layer + 1});
+            frontier.push(Node{x, y});
             parent[x][y] = node;
         }
     }
@@ -110,14 +111,19 @@ int IDS(const Node& start, const Node& goal) {
         memset(explored, false, sizeof(explored));
         parent[start.x][start.y] = Node{-1, -1};
 
+        for (int i = 0; i < BOARD_SIZE; i++) for (int j = 0; j < BOARD_SIZE; j++)
+            layer[i][j] = INT_MAX;
+        layer[start.x][start.y] = 0;
+
         while (!frontier.empty()) {
             Node node = frontier.top(); frontier.pop();
             if (explored[node.x][node.y]) continue;
+
             if (node.x == goal.x && node.y == goal.y) {
                 output(node, num_expand);
                 return num_expand;
             }
-            if (node.layer == l)    continue;
+            if (layer[node.x][node.y] == l)    continue;
 
             explored[node.x][node.y] = true;
             num_expand++;
@@ -126,8 +132,11 @@ int IDS(const Node& start, const Node& goal) {
                 int y = node.y + dy[i];
                 if (is_outside(x, y))   continue;
                 if (explored[x][y])     continue;
-                frontier.push(Node{x, y, node.layer + 1});
-                parent[x][y] = node;
+                frontier.push(Node{x, y});
+                if (layer[node.x][node.y] + 1 < layer[x][y]) {
+                    parent[x][y] = node;
+                    layer[x][y] = layer[node.x][node.y] + 1;
+                }
             }
         }
     }
@@ -143,7 +152,7 @@ int IDS(const Node& start, const Node& goal) {
 // }
 
 int search(int type, int sx, int sy, int gx, int gy) {
-    Node start(sx, sy, 0);
+    Node start(sx, sy);
     Node goal(gx, gy);
 
     if (type == 1) return BFS(start, goal);
