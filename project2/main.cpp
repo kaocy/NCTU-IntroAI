@@ -6,20 +6,24 @@ int board[100][100];
 char c_board[100][100];
 const int dx[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
 const int dy[8] = {-1, 0, 1, -1, 1, -1, 0, 1};
-string heuristic_type;
+
+bool forward_check;
+int heuristic_type;
 
 struct Node {
     vector<vector<int>> assignments;
     vector<vector<int>> domains;
     list<pair<int, int>> unassigned;
+    int current_mine_num;
 
     Node () {
         assignments.resize(board_size_x, vector<int>(board_size_y, 0));
         domains.resize(board_size_x, vector<int>(board_size_y, -1));
         unassigned.clear();
+        current_mine_num = 0;
     }
-    Node (const vector<vector<int>>& assignments, const vector<vector<int>>& domains, const list<pair<int, int>> unassigned)
-        : assignments(assignments), domains(domains), unassigned(unassigned) {}
+    Node (const vector<vector<int>>& assignments, const vector<vector<int>>& domains, const list<pair<int, int>> unassigned, int current_mine_num)
+        : assignments(assignments), domains(domains), unassigned(unassigned), current_mine_num(current_mine_num) {}
 };
 
 bool is_outside(int x, int y) {
@@ -80,8 +84,8 @@ void init_root(Node& node) {
                     if (is_outside(outer_x, outer_y))   continue;
 
                     if (board[outer_x][outer_y] == -1) {
-                        if (node.assignments[outer_x][outer_y] == 1)    mine_num++;
-                        if (node.assignments[outer_x][outer_y] == -1)   space_num++;
+                        if (node.assignments[outer_x][outer_y] == 1)     mine_num++;
+                        if (node.assignments[outer_x][outer_y] == -1)    space_num++;
                     }
                 }
 
@@ -124,7 +128,10 @@ void backtrack_search(const Node& root) {
             vector<vector<int>> assignments = node.assignments;
             vector<vector<int>> domains = node.domains;
             list<pair<int, int>> unassigned = node.unassigned;
+            int current_mine_num = node.current_mine_num + k;
             assignments[x][y] = k;
+
+            bool not_satisfied = false; // forward checking
 
             for (int i = 0; i < 8; i++) {
                 int center_x = x + dx[i];
@@ -132,10 +139,7 @@ void backtrack_search(const Node& root) {
                 if (is_outside(center_x, center_y))   continue;
                 if (board[center_x][center_y] == -1)  continue;
 
-                // cout << center_x << " " << center_y << "\n";
-
-                int mine_num = 0;
-                int space_num = 0;
+                int mine_num = 0, space_num = 0;
                 for (int j = 0; j < 8; j++) {
                     int outer_x = center_x + dx[j];
                     int outer_y = center_y + dy[j];
@@ -147,8 +151,7 @@ void backtrack_search(const Node& root) {
                     }
                 }
                 int mine_need = board[center_x][center_y] - mine_num;
-                int update_domain;
-                // cout << board[center_x][center_y] << " " << mine_num << " " << space_num << "\n"; 
+                int update_domain; 
                 if (mine_need == 0)              update_domain = 0b01;
                 else if (mine_need == space_num) update_domain = 0b10;
                 else if (mine_need < space_num)  update_domain = 0b11;
@@ -159,12 +162,30 @@ void backtrack_search(const Node& root) {
                     int outer_y = center_y + dy[j];
                     if (is_outside(outer_x, outer_y))   continue;
 
-                    if (board[outer_x][outer_y] == -1) {
+                    if (board[outer_x][outer_y] == -1 && assignments[outer_x][outer_y] == -1) {
                         domains[outer_x][outer_y] &= update_domain;
+                        if (forward_check && domains[outer_x][outer_y] == 0) {
+                            not_satisfied = true;
+                        }
                     }
                 }
             }
-            frontier.push(Node{assignments, domains, unassigned});
+
+            // return earlier if constraint will not be satisfied
+            if (forward_check) {
+                if (not_satisfied)  continue;
+                int low_bound = 0, upp_bound = 0;
+                for (const auto& variable : unassigned) {
+                    int vx = variable.first, vy = variable.second;
+                    if (domains[vx][vy] & 0b10)  upp_bound++;
+                    if (domains[vx][vy] == 0b10) low_bound++;
+                }
+                // check total mine number constraint
+                if ((low_bound + current_mine_num > mine_total) ||
+                    (upp_bound + current_mine_num < mine_total)) continue;
+            }
+
+            frontier.push(Node{assignments, domains, unassigned, current_mine_num});
         }
     }
 
@@ -173,7 +194,10 @@ void backtrack_search(const Node& root) {
 }
 
 int main(int argc, char **argv) { // 8 2 9 2
-    if (argc > 1) heuristic_type = argv[1];
+    if (argc > 1) forward_check = (atoi(argv[1]) == 1);
+    if (argc > 2) heuristic_type = atoi(argv[2]);
+    else          heuristic_type = 0;
+    cout << "forward_check: " << forward_check << " heuristic: " << heuristic_type << "\n";
 
     cin >> board_size_x >> board_size_y >> mine_total;
     Node root;
