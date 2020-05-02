@@ -3,7 +3,7 @@ using namespace std;
 
 const int MAX_SIZE = 100;
 int board[MAX_SIZE][MAX_SIZE];
-char c_board[MAX_SIZE][MAX_SIZE]; // for output solution
+char c_board[MAX_SIZE][MAX_SIZE];    // for output solution
 int constraints[MAX_SIZE][MAX_SIZE]; // for degree heuristic
 
 const int dx[8] = {-1, -1, -1, 0, 0, 1, 1, 1};
@@ -14,10 +14,10 @@ bool forward_check;
 int heuristic_type;
 
 struct Node {
-    vector<vector<int>> assignments;
-    vector<vector<int>> domains;
-    vector<pair<int, int>> unassigned;
-    int current_mine_num;
+    vector<vector<int>> assignments;  // variables with value assigned from root to this node
+    vector<vector<int>> domains;      // domains of unassigned variables
+    vector<pair<int, int>> unassigned;// coordinate of unassigned variables
+    int current_mine_num; // the number of mines from root to this node
 
     Node () {
         assignments.resize(board_size_x, vector<int>(board_size_y, 0));
@@ -29,6 +29,7 @@ struct Node {
         : assignments(assignments), domains(domains), unassigned(unassigned), current_mine_num(current_mine_num) {}
 };
 
+// sort according to constraints in Degree heuristic
 struct Degree_cmp {
     bool operator() (pair<int, int> a, pair<int, int> b) {
         return constraints[a.first][a.second] > constraints[b.first][b.second];
@@ -54,17 +55,19 @@ void output(const vector<vector<int>> &assignments) {
     }
     if (mine_num != mine_total) return ;
 
-    cout << "Solution " << ++solution_num << ":\n";
-    for (int i = 0; i < board_size_x; i++) {
-        for (int j = 0; j < board_size_y; j++) {
-            cout << c_board[i][j] << " ";
-        }
-        cout << "\n";
-    }
-    cout << "======================\n";
+    ++solution_num;
+    // cout << "Solution " << solution_num << ":\n";
+    // for (int i = 0; i < board_size_x; i++) {
+    //     for (int j = 0; j < board_size_y; j++) {
+    //         cout << c_board[i][j] << " ";
+    //     }
+    //     cout << "\n";
+    // }
+    // cout << "======================\n";
 }
 
 void init_root(Node &node) {
+    // init the value assignments of variables
     for (int x = 0; x < board_size_x; x++) {
         for (int y = 0; y < board_size_y; y++) {
             if (board[x][y] == -1) {
@@ -74,6 +77,7 @@ void init_root(Node &node) {
         }
     }
 
+    // init the domains (and constraints) of variables
     memset(constraints, 0, sizeof(constraints));
     for (int x = 0; x < board_size_x; x++) {
         for (int y = 0; y < board_size_y; y++) {
@@ -102,10 +106,10 @@ void init_root(Node &node) {
                 }
 
                 int mine_need = board[center_x][center_y] - mine_num;
-                if (mine_need == 0) current_domain &= 0b01;
+                if (mine_need == 0)              current_domain &= 0b01;
                 else if (mine_need == space_num) current_domain &= 0b10;
-                else if (mine_need < space_num) current_domain &= 0b11;
-                else if (mine_need > space_num) current_domain &= 0b00;
+                else if (mine_need < space_num)  current_domain &= 0b11;
+                else if (mine_need > space_num)  current_domain &= 0b00;
 
                 if (current_domain == 0b00) break;
             }
@@ -123,6 +127,8 @@ void backtrack_search(const Node &root) {
 
     while (!frontier.empty()) {
         Node node = frontier.top(); frontier.pop();
+
+        // successfully find a solution when all variables are assigned
         if (node.unassigned.empty()) {
             output(node.assignments);
             continue;
@@ -133,10 +139,13 @@ void backtrack_search(const Node &root) {
 
         int x = variable.first, y = variable.second;
         int current_domain = node.domains[x][y];
+
+        // if the domain is empty then cut the node
         if (current_domain == 0)  continue;
 
         vector<int> value_bit{0, 1};
 
+        // LCV (only when domain is still {0, 1})
         if (heuristic_type == 3 && current_domain == 0b11) {
             int domain_affect[2] = {0, 0};
             for (int k : value_bit) {
@@ -144,7 +153,6 @@ void backtrack_search(const Node &root) {
                 vector<vector<int>> domains = node.domains;
                 vector<pair<int, int>> unassigned;
                 unassigned.assign(node.unassigned.begin() + 1, node.unassigned.end());
-                int current_mine_num = node.current_mine_num + k;
                 assignments[x][y] = k;
 
                 bool not_satisfied = false; // forward checking
@@ -190,6 +198,7 @@ void backtrack_search(const Node &root) {
                 }
                 if (not_satisfied) domain_affect[k] = INT_MAX;
             }
+            // if value 1 is better, try value 1 first
             if (domain_affect[0] > domain_affect[1]) {
                 swap(value_bit[0], value_bit[1]);
             }
@@ -207,6 +216,7 @@ void backtrack_search(const Node &root) {
 
             bool not_satisfied = false; // forward checking
 
+            // update the domains of other variables
             for (int i = 0; i < 8; i++) {
                 int center_x = x + dx[i];
                 int center_y = y + dy[i];
@@ -245,7 +255,7 @@ void backtrack_search(const Node &root) {
                 }
             }
 
-            // return earlier if constraint will not be satisfied
+            // return earlier if constraints will not be satisfied
             if (forward_check) {
                 if (not_satisfied)  continue;
                 int low_bound = 0, upp_bound = 0;
@@ -259,6 +269,7 @@ void backtrack_search(const Node &root) {
                     (upp_bound + current_mine_num < mine_total)) continue;
             }
 
+            // MRV
             if (heuristic_type == 1) {
                 int min_legal_value = 3, index = 0, len = unassigned.size();
                 for (int i = 0; i < len; i++) {
@@ -280,12 +291,11 @@ void backtrack_search(const Node &root) {
     cout << "Number of expanded nodes: " << num_expand << "\n";
 }
 
-int main(int argc, char **argv) { // 8 2 9 2
+int main(int argc, char **argv) {
     if (argc > 1) forward_check = (atoi(argv[1]) == 1);
     if (argc > 2) heuristic_type = atoi(argv[2]);
     else          heuristic_type = 0;
     cout << "forward_check: " << forward_check << " heuristic: " << heuristic_type << "\n";
-    cout << __builtin_popcount(4) << __builtin_popcount(31) << "\n";
 
     cin >> board_size_x >> board_size_y >> mine_total;
     Node root;
@@ -300,6 +310,6 @@ int main(int argc, char **argv) { // 8 2 9 2
     backtrack_search(root);
     auto t2 = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>( t2 - t1 ).count();
-    cout << duration << " us\n";
+    cout << float(duration) / 1000.0 << " ms\n";
     return 0;
 }
