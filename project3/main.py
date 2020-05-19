@@ -60,14 +60,17 @@ class Control():
         self.marked[x][y] = value
 
     def print_marked_cells(self):
+        count = 0
         print('\nResults:')
         for row in self.marked:
             for col in row:
                 if col == 1:
+                    count += 1
                     print('*', end=' ')
                 else:
                     print('-', end=' ')
             print('')
+        print(f'Total mark {count} mines.')
 
     def is_outside(self, x, y):
         return (x < 0) or (x >= self.board_size[0]) or (y < 0) or (y >= self.board_size[1])
@@ -76,36 +79,40 @@ class Control():
 class Player():
     def __init__(self):
         self.kb = []
+        self.kb_tmp = []
         self.kb0 = []
 
     def initialize_kb(self, safe_cells):
-        # print(safe_cells)
         for cell in safe_cells:
             cnf = [(cell[0], cell[1], False)]
             self.kb.append(cnf)
-        # print("Initial kb: ", self.kb)
 
     def handle_single_literal_clause(self):
-        target_cnf = self.kb.pop(0)
-        self.kb0.append(target_cnf[0])
-        # print('kb0: ', self.kb0)
-        for cnf in self.kb:
-            self.handle_resolution(list(target_cnf), list(cnf))
-        return target_cnf[0]
+        cnf1 = self.kb.pop(0)
+        self.kb0.append(cnf1[0])
+        self.kb_tmp = []
+
+        for cnf2 in self.kb:
+            if not self.handle_resolution(list(cnf1), list(cnf2)):
+                self.insert_clause(cnf2)
+
+        self.kb = list(self.kb_tmp)
+        return cnf1[0]
 
     def handle_multiple_literal_clause(self):
+        self.kb_tmp = []
+
         for i, cnf1 in enumerate(self.kb):
+            resolution = False
             for j, cnf2 in enumerate(self.kb[i + 1:]):
-                # print(j, len(self.kb))
-                # cnf2 = self.kb[j]
                 if len(cnf1) > 2 or len(cnf2) > 2:
                     continue
-                print('----------------')
-                print(i, j)
-                print(cnf1)
-                print(cnf2)
-                
-                self.handle_resolution(list(cnf1), list(cnf2))
+                resolution = resolution or self.handle_resolution(list(cnf1), list(cnf2))
+
+            if not resolution:
+                self.insert_clause(cnf1)
+
+        self.kb = list(self.kb_tmp)
 
     def find_complementary_pairs(self, cnf1, cnf2):
         pairs = []
@@ -114,25 +121,23 @@ class Player():
                 if l1[0] == l2[0] and l1[1] == l2[1] and l1[2] != l2[2]:
                     pairs.append((i, j))
         return pairs
-
+ 
     def handle_resolution(self, cnf1, cnf2):
         pairs = self.find_complementary_pairs(cnf1, cnf2)
         if len(pairs) != 1:
-            return
-        
-        if len(cnf1) == 2 and len(cnf2) == 2:
-            print(cnf1)
-            print(cnf2)
+            return False
 
         pair = pairs[0]
         del cnf1[pair[0]]
         del cnf2[pair[1]]
         cnf = cnf1 + cnf2
         self.insert_clause(cnf)
+        return True
 
     def generate_clause_from_hint(self, num_mines, cells):
         # print(num_mines, cells)
         num_cells = len(cells)
+        self.kb_tmp = list(self.kb)
         
         if num_mines == 0:
             for cell in cells:
@@ -159,8 +164,9 @@ class Player():
                     cnf.append((cell[0], cell[1], False))
                 self.insert_clause(list(cnf))
 
+        self.kb = list(self.kb_tmp)
+
     def insert_clause(self, cnf):
-        # print(cnf)
         if len(cnf) == 0:
             return
 
@@ -176,19 +182,21 @@ class Player():
             if not deleted:
                 updated_cnf.append(l1)
 
-        
         if self.check_duplication(updated_cnf):
             return
         if self.check_subsumption(updated_cnf):
             return
 
         if len(updated_cnf) == 1:
-            self.kb.insert(0, updated_cnf)
+            self.kb_tmp.insert(0, updated_cnf)
         else:
-            self.kb.append(updated_cnf)
+            self.kb_tmp.append(updated_cnf)
 
     def check_duplication(self, cnf1):
-        for cnf2 in self.kb:
+        if len(self.kb_tmp) == 0:
+            return False
+
+        for cnf2 in self.kb_tmp:
             if (len(cnf1) != len(cnf2)):
                 return False
             for i in range(len(cnf1)):
@@ -199,15 +207,15 @@ class Player():
     def check_subsumption(self, cnf1):
         kb = []
         res = False
-        for cnf2 in self.kb:
+        for cnf2 in self.kb_tmp:
             if len(cnf1) < len(cnf2) and self.check_strict(cnf1, cnf2):
                 continue
             if len(cnf1) > len(cnf2) and self.check_strict(cnf2, cnf1):
                 res = True
             kb.append(cnf2)
 
-        if len(kb) < len(self.kb):
-            self.kb = kb
+        if len(kb) < len(self.kb_tmp):
+            self.kb_tmp = kb
         return res
 
     def check_strict(self, cnf1, cnf2):
@@ -220,6 +228,7 @@ class Player():
 
             if not find:
                 return False
+
         return True
 
     def check_termination(self):
@@ -246,7 +255,7 @@ class Game():
 
         stuck_count = 0
         while True:
-            if self.player.check_termination() or stuck_count >= 2:
+            if self.player.check_termination() or stuck_count >= 10:
                 self.control.print_marked_cells()
                 break
 
@@ -254,7 +263,6 @@ class Game():
                 stuck_count = 0
                 # print('case1')
                 cell = self.player.handle_single_literal_clause()
-                # print(cell)
                 self.control.mark_cell(cell[0], cell[1], int(cell[2]))
                 if cell[2] == False:
                     num_mines, cells = self.control.get_unmarked_neighbors(cell[0], cell[1])
