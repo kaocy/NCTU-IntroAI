@@ -2,3 +2,6 @@
 *.odt
 search
 minesweeper
+*.txt
+*.bin
+train
