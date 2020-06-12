@@ -84,11 +84,11 @@ public:
         float value = 0.0f;
 
         for (int i = 4; i > 0; i--) {
-            for (int i = 0; i < 13; i++) {
-                uint32_t index = board_to_tuple_index(b, oblique[i]);
-                value += tuple_normal[0][index];
-                // std::cout << std::hex << index << "   " << std::dec << tuple_normal[0][index] << "\n";
-            }
+            // for (int i = 0; i < 13; i++) {
+            //     uint32_t index = board_to_tuple_index(b, oblique[i]);
+            //     value += tuple_normal[0][index];
+            //     // std::cout << std::hex << index << "   " << std::dec << tuple_normal[0][index] << "\n";
+            // }
             // std::cout << "--------------\n";
             for (int i = 0; i < 6; i++) {
                 uint32_t index = board_to_tuple_index(b, straight[i]);
@@ -111,10 +111,10 @@ public:
         Board b(board);
 
         for (int k = 4; k > 0; k--) {
-            for (int i = 0; i < 13; i++) {
-                uint32_t index = board_to_tuple_index(b, oblique[i]);
-                tuple_normal[0][index] += alpha * (value - tuple_normal[0][index]);
-            }
+            // for (int i = 0; i < 13; i++) {
+            //     uint32_t index = board_to_tuple_index(b, oblique[i]);
+            //     tuple_normal[0][index] += alpha * (value - tuple_normal[0][index]);
+            // }
             for (int i = 0; i < 6; i++) {
                 uint32_t index = board_to_tuple_index(b, straight[i]);
                 tuple_normal[0][index] += alpha * (value - tuple_normal[0][index]);

@@ -9,7 +9,7 @@
 #include "episode.h"
 #include "statistic.h"
 #include "utils.h"
-// #include "mcts.h"
+#include "mcts.h"
 
 const std::string PLAYER[] = {"MCTS_with_tuple", "MCTS", "tuple", "heuristic", "eat_first", "random"};
 const std::string SIMULATION[] = {"(random)", "(eat-first)", "(tuple)"};
@@ -17,8 +17,8 @@ std::mutex mtx;
 int fight_black_win, fight_white_win;
 
 void fight_thread(int player1, int player2, int sim1, int sim2, Tuple *tuple, int game_count, uint32_t seed) {
-    // MCTS mcts_tuple(tuple, true, 5000, seed);
-    // MCTS mcts(tuple, false, 5000, seed);
+    MCTS mcts_tuple(tuple, true, 60000, seed);
+    MCTS mcts(tuple, false, 60000, seed);
     TupleRolloutPlayer tuple_player(tuple);
     HeuristicRolloutPlayer heuristic_player;
     GreedyRolloutPlayer greedy_player(seed);
@@ -26,20 +26,22 @@ void fight_thread(int player1, int player2, int sim1, int sim2, Tuple *tuple, in
     
     int black_win = 0, white_win = 0;
     for (int i = 0; i < game_count; i++) {
+        // std::cout << i << "\n";
         Board board;
         int color = 0, step_count = 0, current, sim;
         int skip_count = 0;
         while (true) {
+            // std::cout << "hi\n";
             Board before(board);
             current = color ? player2 : player1;
             sim = color ? sim2 : sim1;
             switch (current) {
-                // case 0:
-                //     mcts_tuple.playing(board, color, sim);
-                //     break;
-                // case 1:
-                //     mcts.playing(board, color, sim);
-                //     break;
+                case 0:
+                    mcts_tuple.playing(board, color, sim);
+                    break;
+                case 1:
+                    mcts.playing(board, color, sim);
+                    break;
                 case 2:
                     tuple_player.playing(board, color);
                     break;
@@ -57,7 +59,8 @@ void fight_thread(int player1, int player2, int sim1, int sim2, Tuple *tuple, in
             }
             if (before != board) skip_count = 0;
             else                 skip_count++;
-            if (skip_count == 2) break;
+            if (skip_count == 2)    break;
+            if (board.game_over())  break;
 
             color ^= 1; // change player
         }
@@ -75,18 +78,6 @@ void fight_thread(int player1, int player2, int sim1, int sim2, Tuple *tuple, in
     mtx.unlock();
 }
 
-/** 
- * player 
- * 0 : MCTS with tuple
- * 1 : MCTS
- * 2 : tuple
- * 3 : eat first
- *
- * simulation
- * 0 : random
- * 1 : eat first
- * 2 : tuple
- */
 void fight(int player1, int player2, int sim1, int sim2, Tuple *tuple, int game_count) {
     std::cout << PLAYER[player1];
     if (player1 <= 1)   std::cout << SIMULATION[sim1];
@@ -97,8 +88,8 @@ void fight(int player1, int player2, int sim1, int sim2, Tuple *tuple, int game_
     fight_black_win = 0, fight_white_win = 0;
     std::vector<std::thread> threads;
     std::random_device rd;
-    for(int i = 0; i < 5; i++) {
-        threads.push_back(std::thread(fight_thread, player1, player2, sim1, sim2, tuple, game_count / 5, rd()));
+    for(int i = 0; i < 10; i++) {
+        threads.push_back(std::thread(fight_thread, player1, player2, sim1, sim2, tuple, game_count / 10, rd()));
     }
     for (auto& th : threads) {
         th.join();
@@ -111,7 +102,7 @@ void fight(int player1, int player2, int sim1, int sim2, Tuple *tuple, int game_
               << " %" << std::endl;
     std::cout << "White: " << fight_white_win * 100.0 / (fight_black_win + fight_white_win)
               << " %\n" << std::endl;
-    std::cout.precision (ss);
+    std::cout.precision(ss);
 }
 
 int main(int argc, const char* argv[]) {
@@ -143,6 +134,7 @@ int main(int argc, const char* argv[]) {
 
     Tuple tuple(tuple_args);
     TupleTrainingPlayer play1(0, &tuple, epsilon), play2(1, &tuple, epsilon);
+    // MCTSTrainingPlayer play1(0, &tuple, epsilon), play2(1, &tuple, epsilon);
     Statistic stat(total, block, limit);
 
     // training - lots of episodes
@@ -159,18 +151,14 @@ int main(int argc, const char* argv[]) {
         // one episode
         while (true) {
             TupleTrainingPlayer& who = game.take_turns(play1, play2);
-            // std::cout << who.role() << "\n";
+            // MCTSTrainingPlayer& who = game.take_turns(play1, play2);
             Action action = who.take_action(game.state());
-            // std::cout << "----\n";
             if (!game.apply_action(action)) skip_count++;
             else    skip_count = 0;
             if (skip_count == 2)    break;
-            // if (who.check_for_win(game.state())) break;
-
-            // Board board = game.state();
-            // board.print_board();
+            if (who.check_for_win(game.state())) break;
         }
-        
+
         int black_bitcount = Bitcount(game.state().get_board(0));
         int white_bitcount = Bitcount(game.state().get_board(1));
         std::string win_bitcount;
@@ -194,13 +182,19 @@ int main(int argc, const char* argv[]) {
 
         // after some episodes, test playing result
         if (stat.episode_count() % block == 0) {
-            fight(3, 4, 1, 1, &tuple, game_count);
-            fight(4, 3, 1, 1, &tuple, game_count);
-            fight(3, 5, 0, 0, &tuple, game_count);
-            fight(5, 3, 0, 0, &tuple, game_count);  
+            fight(2, 4, 0, 0, &tuple, game_count);
+            fight(4, 2, 0, 0, &tuple, game_count);
+            fight(2, 5, 0, 0, &tuple, game_count);
+            fight(5, 2, 0, 0, &tuple, game_count);
+        }
+        if (stat.episode_count() % 5000000 == 0) {
+            fight(0, 1, 0, 0, &tuple, 200);
+            fight(1, 0, 0, 0, &tuple, 200);
+            // fight(0, 1, 1, 1, &tuple, 100);
+            // fight(1, 0, 1, 1, &tuple, 100);
         }
 
-        if (stat.episode_count() % 400000 == 0) {
+        if (stat.episode_count() % 500000 == 0) {
             play1.increase_epsilon();
             play2.increase_epsilon();
             std::cout << play1.get_epsilon() << " " << play2.get_epsilon() << "\n";

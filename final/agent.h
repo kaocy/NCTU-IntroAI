@@ -95,7 +95,7 @@ public:
 
     virtual void close_episode(const std::string& flag = "") {
         float result = std::stof(flag);
-        result *= (color ? -1.0: 1.0);
+        result *= (color ? -1.0 : 1.0);
         for (Board b : record) {
             tuple->train_weight(b, result, 0);
         }
