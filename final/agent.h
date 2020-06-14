@@ -106,7 +106,7 @@ public:
     }
 
     void increase_epsilon() {
-        if (epsilon < 0.9) epsilon += 0.05;
+        if (epsilon < 0.94) epsilon += 0.05;
     }
 
 public:

@@ -28,6 +28,13 @@ public:
             save_weights(meta["save"]);
     }
 
+    float get_learning_rate() const {
+        return learning_rate;
+    }
+    void decay_learning_rate() {
+        learning_rate /= 2.0;
+    }
+
 private:
     typedef std::string key;
     struct value {
@@ -74,6 +81,7 @@ public:
      * 1: states from MCTS nodes
      */
     void train_weight(const Board &b, float result, int source = 0) {
+        // std::cout << learning_rate << "\n";
         if (source == 0)      set_board_value(b, result, learning_rate);
         else if (source == 1) set_board_value(b, result, learning_rate * 0.05f);
     }

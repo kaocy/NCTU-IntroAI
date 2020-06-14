@@ -17,8 +17,8 @@ std::mutex mtx;
 int fight_black_win, fight_white_win;
 
 void fight_thread(int player1, int player2, int sim1, int sim2, Tuple *tuple, int game_count, uint32_t seed) {
-    MCTS mcts_tuple(tuple, true, 60000, seed);
-    MCTS mcts(tuple, false, 60000, seed);
+    MCTS mcts_tuple(tuple, true, 50000, seed);
+    MCTS mcts(tuple, false, 70000, seed);
     TupleRolloutPlayer tuple_player(tuple);
     HeuristicRolloutPlayer heuristic_player;
     GreedyRolloutPlayer greedy_player(seed);
@@ -186,6 +186,18 @@ int main(int argc, const char* argv[]) {
             fight(4, 2, 0, 0, &tuple, game_count);
             fight(2, 5, 0, 0, &tuple, game_count);
             fight(5, 2, 0, 0, &tuple, game_count);
+            // fight(2, 1, 0, 0, &tuple, 1000);
+            // fight(1, 2, 0, 0, &tuple, 1000);
+            // fight(2, 1, 1, 1, &tuple, 1000);
+            // fight(1, 2, 1, 1, &tuple, 1000);
+            // fight(2, 0, 0, 0, &tuple, 1000);
+            // fight(0, 2, 0, 0, &tuple, 1000);
+            // fight(2, 0, 1, 1, &tuple, 1000);
+            // fight(0, 2, 1, 1, &tuple, 1000);
+            // fight(0, 1, 0, 0, &tuple, 100);
+            // fight(1, 0, 0, 0, &tuple, 100);
+            // fight(0, 1, 1, 1, &tuple, 100);
+            // fight(1, 0, 1, 1, &tuple, 100);
         }
         if (stat.episode_count() % 5000000 == 0) {
             fight(0, 1, 0, 0, &tuple, 200);
@@ -193,11 +205,16 @@ int main(int argc, const char* argv[]) {
             // fight(0, 1, 1, 1, &tuple, 100);
             // fight(1, 0, 1, 1, &tuple, 100);
         }
+        tuple.decay_learning_rate();
 
         if (stat.episode_count() % 500000 == 0) {
             play1.increase_epsilon();
             play2.increase_epsilon();
             std::cout << play1.get_epsilon() << " " << play2.get_epsilon() << "\n";
+        }
+        if (stat.episode_count() % 2000000 == 0) {
+            tuple.decay_learning_rate();
+            std::cout << tuple.get_learning_rate() << "\n";
         }
     }
     return 0;
